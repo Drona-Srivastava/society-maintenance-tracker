@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# DB backup
+*.sql
+
 # Python
 __pycache__/
 *.py[cod]
