@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from app.core.config import settings
 from app.models.complaint import ComplaintPriority, ComplaintStatus
-
 from typing import Optional
+
 
 class ComplaintCreate(BaseModel):
     category: str = Field(
@@ -31,6 +32,18 @@ class ComplaintResponse(BaseModel):
     resolved_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def is_overdue(self) -> bool:
+        if self.status == ComplaintStatus.RESOLVED:
+            return False
+
+        cutoff = datetime.now(timezone.utc).timestamp() - (
+            settings.COMPLAINT_OVERDUE_DAYS * 24 * 60 * 60
+        )
+
+        return self.created_at.timestamp() < cutoff
 
 class ComplaintHistoryResponse(BaseModel):
     id: int

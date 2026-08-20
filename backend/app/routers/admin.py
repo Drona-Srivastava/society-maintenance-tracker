@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import require_admin
+from app.core.config import settings
+
 from app.models.complaint import (
     Complaint,
     ComplaintPriority,
@@ -13,6 +15,7 @@ from app.models.complaint import (
 )
 from app.models.complaint_history import ComplaintHistory
 from app.models.user import User
+from app.models.notice import Notice
 from app.schemas.complaint import (
     ComplaintResponse,
     ComplaintUpdate,
@@ -26,6 +29,11 @@ from app.models.complaint import (
 from app.schemas.complaint import (
     ComplaintResponse,
     ComplaintUpdate,
+)
+
+from app.schemas.dashboard import (
+    ComplaintStats,
+    DashboardResponse,
 )
 
 router = APIRouter(
@@ -192,3 +200,83 @@ def update_complaint(
     db.refresh(complaint)
 
     return complaint
+
+@router.get(
+    "/dashboard",
+    response_model=DashboardResponse,
+)
+def get_dashboard(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    now = datetime.now(timezone.utc)
+
+    overdue_cutoff = now - timedelta(
+        days=settings.COMPLAINT_OVERDUE_DAYS
+    )
+
+    total_complaints = db.scalar(
+        select(func.count(Complaint.id))
+    ) or 0
+
+    open_complaints = db.scalar(
+        select(func.count(Complaint.id)).where(
+            Complaint.status == ComplaintStatus.OPEN
+        )
+    ) or 0
+
+    in_progress_complaints = db.scalar(
+        select(func.count(Complaint.id)).where(
+            Complaint.status == ComplaintStatus.IN_PROGRESS
+        )
+    ) or 0
+
+    resolved_complaints = db.scalar(
+        select(func.count(Complaint.id)).where(
+            Complaint.status == ComplaintStatus.RESOLVED
+        )
+    ) or 0
+
+    overdue_complaints = db.scalar(
+        select(func.count(Complaint.id)).where(
+            Complaint.status != ComplaintStatus.RESOLVED,
+            Complaint.created_at < overdue_cutoff,
+        )
+    ) or 0
+
+    high_priority_complaints = db.scalar(
+        select(func.count(Complaint.id)).where(
+            Complaint.priority == ComplaintPriority.HIGH,
+            Complaint.status != ComplaintStatus.RESOLVED,
+        )
+    ) or 0
+
+    total_residents = db.scalar(
+        select(func.count(User.id)).where(
+            User.role == "resident"
+        )
+    ) or 0
+
+    total_notices = db.scalar(
+        select(func.count(Notice.id))
+    ) or 0
+
+    important_notices = db.scalar(
+        select(func.count(Notice.id)).where(
+            Notice.is_important.is_(True)
+        )
+    ) or 0
+
+    return DashboardResponse(
+        complaints=ComplaintStats(
+            total=total_complaints,
+            open=open_complaints,
+            in_progress=in_progress_complaints,
+            resolved=resolved_complaints,
+            overdue=overdue_complaints,
+            high_priority=high_priority_complaints,
+        ),
+        total_residents=total_residents,
+        total_notices=total_notices,
+        important_notices=important_notices,
+    )

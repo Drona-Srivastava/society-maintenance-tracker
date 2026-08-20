@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, File, Form, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -19,21 +19,30 @@ router = APIRouter(
     tags=["Complaints"],
 )
 
-
 @router.post(
     "",
     response_model=ComplaintResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def create_complaint(
-    data: ComplaintCreate,
+async def create_complaint(
+    category: str = Form(...),
+    description: str = Form(...),
+    photo: UploadFile | None = File(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    photo_url = None
+
+    if photo is not None:
+        from app.services.storage import save_file
+
+        photo_url = await save_file(photo)
+
     complaint = Complaint(
         resident_id=current_user.id,
-        category=data.category,
-        description=data.description,
+        category=category,
+        description=description,
+        photo_url=photo_url,
         status="open",
         priority=ComplaintPriority.MEDIUM,
     )
@@ -55,6 +64,7 @@ def create_complaint(
     db.refresh(complaint)
 
     return complaint
+    
 
 @router.get(
     "",

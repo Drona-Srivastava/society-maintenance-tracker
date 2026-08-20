@@ -24,4 +24,6 @@ dist/
 *.pem
 *.key
 
+uploads/
+
 pass.txt
