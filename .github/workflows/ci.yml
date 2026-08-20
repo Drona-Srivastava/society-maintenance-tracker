@@ -91,3 +91,35 @@ jobs:
           exit-code: "1"
           ignore-unfixed: true
           severity: CRITICAL
+  push:
+    name: Push Image to ACR
+    runs-on: ubuntu-latest
+    needs: security
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: 5a35a2b4-88fe-451f-b1ee-8e5a8181bba1
+          tenant-id: 194f8abc-6bbb-4b2c-88f8-dd5d4d8e5325
+          subscription-id: 2e343d2b-52f3-465c-b23c-c32ef2ca365f
+
+      - name: Login to Azure Container Registry
+        run: |
+          az acr login --name societymaintenanceacr
+
+      - name: Build and push Docker image
+        run: |
+          docker build \
+            -t societymaintenanceacr.azurecr.io/society-maintenance-tracker:${{ github.sha }} \
+            ./backend
+
+          docker push \
+            societymaintenanceacr.azurecr.io/society-maintenance-tracker:${{ github.sha }}
