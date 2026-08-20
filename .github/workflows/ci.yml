@@ -107,9 +107,9 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: 5a35a2b4-88fe-451f-b1ee-8e5a8181bba1
-          tenant-id: 194f8abc-6bbb-4b2c-88f8-dd5d4d8e5325
-          subscription-id: 2e343d2b-52f3-465c-b23c-c32ef2ca365f
+            client-id: 5a35a2b4-88fe-451f-b1ee-8e5a8181bba1
+            tenant-id: 431c5847-2a28-4bbb-9e39-d7aaffe89d97
+            subscription-id: 2e343d2b-52f3-465c-b23c-c32ef2ca365f
 
       - name: Login to Azure Container Registry
         run: |
