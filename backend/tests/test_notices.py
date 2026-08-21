@@ -1,28 +1,12 @@
-def get_token(client, email, password):
-    response = client.post(
-        "/api/auth/login",
-        json={
-            "email": email,
-            "password": password,
-        },
-    )
-
-    assert response.status_code == 200
-
-    return response.json()["access_token"]
-
-
-def test_admin_can_create_notice(client, admin):
-    token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
+def test_admin_can_create_notice(
+    client,
+    admin,
+    admin_token,
+):
     response = client.post(
         "/api/notices",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {admin_token}",
         },
         json={
             "title": "Water Supply Maintenance",
@@ -41,13 +25,13 @@ def test_admin_can_create_notice(client, admin):
     assert data["created_by"] == admin.id
 
 
-def test_resident_can_read_notices(client, resident, admin):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
+def test_resident_can_read_notices(
+    client,
+    resident,
+    admin,
+    admin_token,
+    resident_token,
+):
     create_response = client.post(
         "/api/notices",
         headers={
@@ -61,12 +45,6 @@ def test_resident_can_read_notices(client, resident, admin):
     )
 
     assert create_response.status_code == 201
-
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
 
     response = client.get(
         "/api/notices",
@@ -91,13 +69,9 @@ def test_resident_can_get_notice(
     client,
     resident,
     admin,
+    admin_token,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
     create_response = client.post(
         "/api/notices",
         headers={
@@ -110,13 +84,9 @@ def test_resident_can_get_notice(
         },
     )
 
-    notice_id = create_response.json()["id"]
+    assert create_response.status_code == 201
 
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
+    notice_id = create_response.json()["id"]
 
     response = client.get(
         f"/api/notices/{notice_id}",
@@ -132,20 +102,16 @@ def test_resident_can_get_notice(
     assert data["id"] == notice_id
     assert data["title"] == "Parking Maintenance"
 
+
 def test_admin_can_update_notice(
     client,
     admin,
+    admin_token,
 ):
-    token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
     create_response = client.post(
         "/api/notices",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {admin_token}",
         },
         json={
             "title": "Old Title",
@@ -161,7 +127,7 @@ def test_admin_can_update_notice(
     response = client.patch(
         f"/api/notices/{notice_id}",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {admin_token}",
         },
         json={
             "title": "Updated Title",
@@ -178,20 +144,16 @@ def test_admin_can_update_notice(
     assert data["content"] == "Updated content."
     assert data["is_important"] is True
 
+
 def test_admin_can_delete_notice(
     client,
     admin,
+    admin_token,
 ):
-    token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
     create_response = client.post(
         "/api/notices",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {admin_token}",
         },
         json={
             "title": "Temporary Notice",
@@ -200,12 +162,14 @@ def test_admin_can_delete_notice(
         },
     )
 
+    assert create_response.status_code == 201
+
     notice_id = create_response.json()["id"]
 
     response = client.delete(
         f"/api/notices/{notice_id}",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {admin_token}",
         },
     )
 
@@ -214,26 +178,22 @@ def test_admin_can_delete_notice(
     get_response = client.get(
         f"/api/notices/{notice_id}",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {admin_token}",
         },
     )
 
     assert get_response.status_code == 404
 
+
 def test_resident_cannot_create_notice(
     client,
     resident,
+    resident_token,
 ):
-    token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     response = client.post(
         "/api/notices",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {resident_token}",
         },
         json={
             "title": "Unauthorized Notice",
@@ -244,17 +204,14 @@ def test_resident_cannot_create_notice(
 
     assert response.status_code == 403
 
+
 def test_resident_cannot_update_notice(
     client,
     resident,
     admin,
+    admin_token,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
     create_response = client.post(
         "/api/notices",
         headers={
@@ -267,13 +224,9 @@ def test_resident_cannot_update_notice(
         },
     )
 
-    notice_id = create_response.json()["id"]
+    assert create_response.status_code == 201
 
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
+    notice_id = create_response.json()["id"]
 
     response = client.patch(
         f"/api/notices/{notice_id}",
@@ -287,17 +240,14 @@ def test_resident_cannot_update_notice(
 
     assert response.status_code == 403
 
+
 def test_resident_cannot_delete_notice(
     client,
     resident,
     admin,
+    admin_token,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
     create_response = client.post(
         "/api/notices",
         headers={
@@ -310,13 +260,9 @@ def test_resident_cannot_delete_notice(
         },
     )
 
-    notice_id = create_response.json()["id"]
+    assert create_response.status_code == 201
 
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
+    notice_id = create_response.json()["id"]
 
     response = client.delete(
         f"/api/notices/{notice_id}",
@@ -327,18 +273,15 @@ def test_resident_cannot_delete_notice(
 
     assert response.status_code == 403
 
+
 def test_important_notices_appear_first(
     client,
     admin,
     resident,
+    admin_token,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
-    client.post(
+    normal_response = client.post(
         "/api/notices",
         headers={
             "Authorization": f"Bearer {admin_token}",
@@ -350,7 +293,9 @@ def test_important_notices_appear_first(
         },
     )
 
-    client.post(
+    assert normal_response.status_code == 201
+
+    important_response = client.post(
         "/api/notices",
         headers={
             "Authorization": f"Bearer {admin_token}",
@@ -362,11 +307,7 @@ def test_important_notices_appear_first(
         },
     )
 
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
+    assert important_response.status_code == 201
 
     response = client.get(
         "/api/notices",
@@ -392,4 +333,3 @@ def test_important_notices_appear_first(
     )
 
     assert important_index < normal_index
-

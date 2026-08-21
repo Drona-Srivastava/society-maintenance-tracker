@@ -35,6 +35,21 @@ class User(Base):
         default="resident",
     )
 
+    phone: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    address: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    profile_picture_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

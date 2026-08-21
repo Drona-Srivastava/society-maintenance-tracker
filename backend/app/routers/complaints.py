@@ -1,6 +1,17 @@
-from fastapi import APIRouter, Depends, status, HTTPException, File, Form, UploadFile
+from math import ceil
+from fastapi import (
+    APIRouter,
+    Depends,
+    status,
+    HTTPException,
+    File,
+    Form,
+    UploadFile,
+    Query,
+)
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -11,8 +22,12 @@ from app.schemas.complaint import (
     ComplaintCreate,
     ComplaintHistoryResponse,
     ComplaintResponse,
+    ComplaintListResponse,
 )
-
+from app.services.storage import (
+    COMPLAINT_UPLOAD_DIR,
+    save_file,
+)
 
 router = APIRouter(
     prefix="/api/complaints",
@@ -34,9 +49,10 @@ async def create_complaint(
     photo_url = None
 
     if photo is not None:
-        from app.services.storage import save_file
-
-        photo_url = await save_file(photo)
+        photo_url = await save_file(
+            photo,
+            COMPLAINT_UPLOAD_DIR,
+        )
 
     complaint = Complaint(
         resident_id=current_user.id,
@@ -68,19 +84,40 @@ async def create_complaint(
 
 @router.get(
     "",
-    response_model=list[ComplaintResponse],
+    response_model=ComplaintListResponse,
 )
 def get_my_complaints(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    complaints = db.scalars(
-        select(Complaint)
+    base_query = select(Complaint).where(
+        Complaint.resident_id == current_user.id
+    )
+
+    total = db.scalar(
+        select(func.count())
+        .select_from(Complaint)
         .where(Complaint.resident_id == current_user.id)
+    ) or 0
+
+    complaints = db.scalars(
+        base_query
         .order_by(Complaint.created_at.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
     ).all()
 
-    return complaints
+    total_pages = ceil(total / limit) if total else 0
+
+    return ComplaintListResponse(
+        items=complaints,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+    )
 
 @router.get(
     "/{complaint_id}",

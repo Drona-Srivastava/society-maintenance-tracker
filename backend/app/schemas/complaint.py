@@ -63,3 +63,10 @@ class ComplaintUpdate(BaseModel):
         default=None,
         max_length=1000,
     )
+
+class ComplaintListResponse(BaseModel):
+    items: list[ComplaintResponse]
+    total: int
+    page: int
+    limit: int
+    total_pages: int

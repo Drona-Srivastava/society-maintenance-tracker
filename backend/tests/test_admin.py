@@ -1,31 +1,17 @@
-def get_token(client, email, password):
-    response = client.post(
-        "/api/auth/login",
-        json={
-            "email": email,
-            "password": password,
-        },
-    )
+from datetime import datetime, timedelta, timezone
 
-    assert response.status_code == 200
+from app.models.complaint import (
+    Complaint,
+    ComplaintPriority,
+    ComplaintStatus,
+)
 
-    return response.json()["access_token"]
-
-
-def test_resident_cannot_access_admin_complaints(
-    client,
-    resident,
-):
-    token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
+def test_admin_can_list_complaints(client, admin_token, admin):
 
     response = client.get(
         "/api/admin/complaints",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {admin_token}",
         },
     )
 
@@ -34,18 +20,14 @@ def test_resident_cannot_access_admin_complaints(
 
 def test_admin_can_list_complaints(
     client,
+    admin_token,
     admin,
 ):
-    token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
 
     response = client.get(
         "/api/admin/complaints",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {admin_token}",
         },
     )
 
@@ -55,20 +37,10 @@ def test_admin_can_list_complaints(
 def test_admin_can_move_complaint_to_in_progress(
     client,
     admin,
+    admin_token,
     resident,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     create_response = client.post(
         "/api/complaints",
         headers={
@@ -100,20 +72,10 @@ def test_admin_can_move_complaint_to_in_progress(
 def test_admin_can_resolve_in_progress_complaint(
     client,
     admin,
+    admin_token,
     resident,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     create_response = client.post(
         "/api/complaints",
         headers={
@@ -154,21 +116,10 @@ def test_admin_can_resolve_in_progress_complaint(
 
 def test_admin_cannot_resolve_open_complaint_directly(
     client,
-    admin,
+    admin_token,
     resident,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     create_response = client.post(
         "/api/complaints",
         headers={
@@ -197,17 +148,12 @@ def test_admin_cannot_resolve_open_complaint_directly(
 def test_admin_dashboard(
     client,
     admin,
+    admin_token,
 ):
-    token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
     response = client.get(
         "/api/admin/dashboard",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {admin_token}",
         },
     )
 
@@ -229,17 +175,12 @@ def test_admin_dashboard(
 def test_resident_cannot_access_dashboard(
     client,
     resident,
+    resident_token,
 ):
-    token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     response = client.get(
         "/api/admin/dashboard",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {resident_token}",
         },
     )
 
@@ -248,20 +189,10 @@ def test_resident_cannot_access_dashboard(
 def test_admin_can_filter_complaints_by_status(
     client,
     admin,
+    admin_token,
     resident,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     # Create two complaints
     first = client.post(
         "/api/complaints",
@@ -318,20 +249,10 @@ def test_admin_can_filter_complaints_by_status(
 def test_admin_can_filter_complaints_by_priority(
     client,
     admin,
+    admin_token,
     resident,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     response = client.post(
         "/api/complaints",
         headers={
@@ -378,20 +299,10 @@ def test_admin_can_filter_complaints_by_priority(
 def test_admin_can_filter_complaints_by_category(
     client,
     admin,
+    admin_token,
     resident,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     for category in ["Plumbing", "Electrical"]:
         response = client.post(
             "/api/complaints",
@@ -426,20 +337,10 @@ def test_admin_can_filter_complaints_by_category(
 def test_admin_complaint_pagination(
     client,
     admin,
+    admin_token,
     resident,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     for i in range(5):
         response = client.post(
             "/api/complaints",
@@ -467,20 +368,10 @@ def test_admin_complaint_pagination(
 def test_admin_can_combine_complaint_filters(
     client,
     admin,
+    admin_token,
     resident,
+    resident_token,
 ):
-    admin_token = get_token(
-        client,
-        "admin@test.com",
-        "Admin@123",
-    )
-
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
     response = client.post(
         "/api/complaints",
         headers={
@@ -528,3 +419,187 @@ def test_admin_can_combine_complaint_filters(
         assert complaint["status"] == "open"
         assert complaint["priority"] == "high"
         assert complaint["category"].lower() == "plumbing"
+
+def test_admin_overdue_complaints_appear_first(
+    client,
+    admin,
+    admin_token,
+    resident,
+    resident_token,
+    db,
+):
+    # Create an old complaint that should be overdue.
+    overdue_complaint = Complaint(
+        resident_id=resident.id,
+        category="Plumbing",
+        description="Old water leakage complaint.",
+        status=ComplaintStatus.OPEN,
+        priority=ComplaintPriority.MEDIUM,
+        created_at=datetime.now(timezone.utc) - timedelta(days=5),
+    )
+
+    # Create a recent complaint that should not be overdue.
+    recent_complaint = Complaint(
+        resident_id=resident.id,
+        category="Electrical",
+        description="Recent electrical complaint.",
+        status=ComplaintStatus.OPEN,
+        priority=ComplaintPriority.MEDIUM,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    db.add_all([
+        overdue_complaint,
+        recent_complaint,
+    ])
+    db.flush()
+
+    response = client.get(
+        "/api/admin/complaints",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    complaints = response.json()
+
+    overdue = next(
+        complaint
+        for complaint in complaints
+        if complaint["id"] == overdue_complaint.id
+    )
+
+    recent = next(
+        complaint
+        for complaint in complaints
+        if complaint["id"] == recent_complaint.id
+    )
+
+    assert overdue["is_overdue"] is True
+    assert recent["is_overdue"] is False
+
+    overdue_index = next(
+        index
+        for index, complaint in enumerate(complaints)
+        if complaint["id"] == overdue_complaint.id
+    )
+
+    recent_index = next(
+        index
+        for index, complaint in enumerate(complaints)
+        if complaint["id"] == recent_complaint.id
+    )
+
+    assert overdue_index < recent_index
+
+def test_resolving_complaint_sets_resolved_at(
+    client,
+    admin,
+    admin_token,
+    resident,
+    resident_token,
+):
+    create_response = client.post(
+        "/api/complaints",
+        headers={
+            "Authorization": f"Bearer {resident_token}",
+        },
+        data={
+            "category": "Plumbing",
+            "description": "Pipe is leaking.",
+        },
+    )
+
+    complaint_id = create_response.json()["id"]
+
+    # OPEN → IN_PROGRESS
+    response = client.patch(
+        f"/api/admin/complaints/{complaint_id}",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+        },
+        json={
+            "status": "in_progress",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["resolved_at"] is None
+
+    # IN_PROGRESS → RESOLVED
+    response = client.patch(
+        f"/api/admin/complaints/{complaint_id}",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+        },
+        json={
+            "status": "resolved",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "resolved"
+    assert data["resolved_at"] is not None
+
+def test_reopening_complaint_clears_resolved_at(
+    client,
+    admin,
+    admin_token,
+    resident,
+    resident_token,
+):
+    create_response = client.post(
+        "/api/complaints",
+        headers={
+            "Authorization": f"Bearer {resident_token}",
+        },
+        data={
+            "category": "Electrical",
+            "description": "Corridor light is broken.",
+        },
+    )
+
+    complaint_id = create_response.json()["id"]
+
+    # OPEN → IN_PROGRESS
+    client.patch(
+        f"/api/admin/complaints/{complaint_id}",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+        },
+        json={"status": "in_progress"},
+    )
+
+    # IN_PROGRESS → RESOLVED
+    response = client.patch(
+        f"/api/admin/complaints/{complaint_id}",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+        },
+        json={"status": "resolved"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["resolved_at"] is not None
+
+    # RESOLVED → OPEN
+    response = client.patch(
+        f"/api/admin/complaints/{complaint_id}",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+        },
+        json={"status": "open"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "open"
+    assert data["resolved_at"] is None
+

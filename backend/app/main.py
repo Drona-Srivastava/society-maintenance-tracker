@@ -4,6 +4,7 @@ from pathlib import Path
 
 from app.core.database import engine
 from app.routers.auth import router as auth_router
+from app.routers import dashboard
 from app.routers.complaints import router as complaints_router
 from app.routers.admin import router as admin_router
 from app.routers.notices import router as notices_router
@@ -29,6 +30,7 @@ app.include_router(auth_router)
 app.include_router(complaints_router)
 app.include_router(admin_router)
 app.include_router(notices_router)
+app.include_router(dashboard.router)
 
 @app.get("/health")
 def health():

@@ -1,28 +1,8 @@
-def get_token(client, email, password):
-    response = client.post(
-        "/api/auth/login",
-        json={
-            "email": email,
-            "password": password,
-        },
-    )
-
-    assert response.status_code == 200
-
-    return response.json()["access_token"]
-
-
-def test_create_complaint(client, resident):
-    token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
+def test_create_complaint(client, resident_token, resident):
     response = client.post(
         "/api/complaints",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {resident_token}",
         },
         data={
             "category": "Plumbing",
@@ -43,17 +23,11 @@ def test_create_complaint(client, resident):
     assert data["is_overdue"] is False
 
 
-def test_get_my_complaints(client, resident):
-    token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
+def test_get_my_complaints(client, resident_token, resident):
     create_response = client.post(
         "/api/complaints",
         headers={
-            "Authorization": f"Bearer {token}",
+           "Authorization": f"Bearer {resident_token}",
         },
         data={
             "category": "Electrical",
@@ -66,7 +40,7 @@ def test_get_my_complaints(client, resident):
     response = client.get(
         "/api/complaints",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {resident_token}",
         },
     )
 
@@ -74,25 +48,23 @@ def test_get_my_complaints(client, resident):
 
     data = response.json()
 
-    assert len(data) >= 1
+    assert data["total"] >= 1
+    assert data["page"] == 1
+    assert data["limit"] == 10
+    assert data["total_pages"] >= 1
 
     assert any(
         complaint["description"]
         == "Corridor light is not working."
-        for complaint in data
+        for complaint in data["items"]
     )
 
-def test_get_complaint_details(client, resident):
-    token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
+def test_get_complaint_details(client, resident_token, resident):
 
     create_response = client.post(
         "/api/complaints",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {resident_token}",
         },
         data={
             "category": "Water",
@@ -105,7 +77,7 @@ def test_get_complaint_details(client, resident):
     response = client.get(
         f"/api/complaints/{complaint_id}",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {resident_token}",
         },
     )
 
@@ -121,19 +93,9 @@ def test_resident_cannot_access_other_resident_complaint(
     client,
     resident,
     second_resident,
+    resident_token,
+    second_resident_token,
 ):
-    resident_token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
-    second_token = get_token(
-        client,
-        "resident2@test.com",
-        "Resident2@123",
-    )
-
     # Resident 1 creates a complaint
     create_response = client.post(
         "/api/complaints",
@@ -154,23 +116,17 @@ def test_resident_cannot_access_other_resident_complaint(
     response = client.get(
         f"/api/complaints/{complaint_id}",
         headers={
-            "Authorization": f"Bearer {second_token}",
+            "Authorization": f"Bearer {second_resident_token}",
         },
     )
 
     assert response.status_code == 403
 
-def test_complaint_history(client, resident):
-    token = get_token(
-        client,
-        "resident@test.com",
-        "Resident@123",
-    )
-
+def test_complaint_history(client, resident_token, resident):
     create_response = client.post(
         "/api/complaints",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {resident_token}",
         },
         data={
             "category": "Plumbing",
@@ -183,7 +139,7 @@ def test_complaint_history(client, resident):
     response = client.get(
         f"/api/complaints/{complaint_id}/history",
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {resident_token}",
         },
     )
 
@@ -202,3 +158,151 @@ def test_complaints_require_authentication(client):
     response = client.get("/api/complaints")
 
     assert response.status_code in (401, 403)
+
+def test_create_complaint_with_photo(client, resident_token, resident):
+    response = client.post(
+        "/api/complaints",
+        headers={
+            "Authorization": f"Bearer {resident_token}",
+        },
+        data={
+            "category": "Plumbing",
+            "description": "Water leaking from the bathroom pipe.",
+        },
+        files={
+            "photo": (
+                "leak.jpg",
+                b"\xff\xd8\xff\xe0" + b"\x00" * 100,
+                "image/jpeg",
+            )
+        },
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["resident_id"] == resident.id
+    assert data["photo_url"] is not None
+    assert data["photo_url"].startswith(
+        "/uploads/complaints/"
+    )
+
+    photo_url = data["photo_url"]
+
+    image_response = client.get(photo_url)
+
+    assert image_response.status_code == 200
+
+
+def test_create_complaint_rejects_invalid_photo(client, resident_token, resident):    
+    response = client.post(
+        "/api/complaints",
+        headers={
+            "Authorization": f"Bearer {resident_token}",
+        },
+        data={
+            "category": "Plumbing",
+            "description": "Water leaking from the bathroom pipe.",
+        },
+        files={
+            "photo": (
+                "notes.txt",
+                b"not an image",
+                "text/plain",
+            )
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Only JPEG, PNG, and WebP images are allowed"
+    )
+def test_create_complaint_rejects_oversized_photo(
+    client,
+    resident_token,
+    resident,
+):
+    oversized_image = b"\xff\xd8" + (
+        b"x" * (5 * 1024 * 1024 + 1)
+    )
+
+    response = client.post(
+        "/api/complaints",
+        headers={
+            "Authorization": f"Bearer {resident_token}",
+        },
+        data={
+            "category": "Plumbing",
+            "description": "Water leaking from the bathroom pipe.",
+        },
+        files={
+            "photo": (
+                "large.jpg",
+                oversized_image,
+                "image/jpeg",
+            )
+        },
+    )
+
+    assert response.status_code == 413
+
+def test_get_my_complaints_pagination(client, resident_token, resident):
+    for i in range(5):
+        response = client.post(
+            "/api/complaints",
+            headers={
+                "Authorization": f"Bearer {resident_token}",
+            },
+            data={
+                "category": "Plumbing",
+                "description": f"Test complaint number {i}.",
+            },
+        )
+
+        assert response.status_code == 201
+
+    response = client.get(
+        "/api/complaints?page=1&limit=2",
+        headers={
+            "Authorization": f"Bearer {resident_token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 5
+    assert data["page"] == 1
+    assert data["limit"] == 2
+    assert data["total_pages"] == 3
+    assert len(data["items"]) == 2
+
+    response = client.get(
+        "/api/complaints?page=2&limit=2",
+        headers={
+            "Authorization": f"Bearer {resident_token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["page"] == 2
+    assert len(data["items"]) == 2
+
+    response = client.get(
+        "/api/complaints?page=3&limit=2",
+        headers={
+            "Authorization": f"Bearer {resident_token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["page"] == 3
+    assert len(data["items"]) == 1

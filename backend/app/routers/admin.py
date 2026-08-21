@@ -108,9 +108,21 @@ def get_all_complaints(
             Complaint.created_at <= to_date
         )
 
+    overdue_cutoff = datetime.now(timezone.utc) - timedelta(
+    days=settings.COMPLAINT_OVERDUE_DAYS
+)
+
+    is_overdue = (
+        (Complaint.status != ComplaintStatus.RESOLVED)
+        & (Complaint.created_at < overdue_cutoff)
+    )
+
     query = (
         query
-        .order_by(Complaint.created_at.desc())
+        .order_by(
+            is_overdue.desc(),
+            Complaint.created_at.desc(),
+        )
         .offset((page - 1) * limit)
         .limit(limit)
     )
@@ -166,6 +178,12 @@ def update_complaint(
             )
         if data.status != old_status:
             complaint.status = data.status
+
+        if data.status == ComplaintStatus.RESOLVED:
+            complaint.resolved_at = datetime.now(timezone.utc)
+
+        elif data.status == ComplaintStatus.OPEN:
+            complaint.resolved_at = None
 
     # Priority change
     if data.priority is not None:

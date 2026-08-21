@@ -24,6 +24,18 @@ TestingSessionLocal = sessionmaker(
     bind=engine,
 )
 
+def get_token(client, email, password):
+    response = client.post(
+        "/api/auth/login",
+        json={
+            "email": email,
+            "password": password,
+        },
+    )
+
+    assert response.status_code == 200
+
+    return response.json()["access_token"]
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
@@ -104,3 +116,47 @@ def second_resident(db):
     db.flush()
 
     return user
+
+@pytest.fixture
+def resident_token(client, resident):
+    response = client.post(
+        "/api/auth/login",
+        json={
+            "email": "resident@test.com",
+            "password": "Resident@123",
+        },
+    )
+
+    assert response.status_code == 200
+
+    return response.json()["access_token"]
+
+
+@pytest.fixture
+def admin_token(client, admin):
+    response = client.post(
+        "/api/auth/login",
+        json={
+            "email": "admin@test.com",
+            "password": "Admin@123",
+        },
+    )
+
+    assert response.status_code == 200
+
+    return response.json()["access_token"]
+
+
+@pytest.fixture
+def second_resident_token(client, second_resident):
+    response = client.post(
+        "/api/auth/login",
+        json={
+            "email": "resident2@test.com",
+            "password": "Resident2@123",
+        },
+    )
+
+    assert response.status_code == 200
+
+    return response.json()["access_token"]
