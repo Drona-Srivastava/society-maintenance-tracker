@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import require_admin
-from app.core.config import settings
 
 from app.models.complaint import (
     Complaint,
@@ -14,23 +14,13 @@ from app.models.complaint import (
     ComplaintStatus,
 )
 from app.models.complaint_history import ComplaintHistory
-from app.models.user import User
 from app.models.notice import Notice
+from app.models.user import User
+
 from app.schemas.complaint import (
     ComplaintResponse,
     ComplaintUpdate,
 )
-
-from app.models.complaint import (
-    Complaint,
-    ComplaintPriority,
-    ComplaintStatus,
-)
-from app.schemas.complaint import (
-    ComplaintResponse,
-    ComplaintUpdate,
-)
-
 from app.schemas.dashboard import (
     ComplaintStats,
     DashboardResponse,
@@ -77,6 +67,14 @@ def get_all_complaints(
     ),
     priority: ComplaintPriority | None = None,
     category: str | None = None,
+    from_date: datetime | None = Query(
+        default=None,
+        description="Return complaints created on or after this date",
+    ),
+    to_date: datetime | None = Query(
+        default=None,
+        description="Return complaints created before or on this date",
+    ),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(require_admin),
@@ -97,7 +95,17 @@ def get_all_complaints(
     if category is not None:
         query = query.where(
             func.lower(Complaint.category)
-            == category.lower()
+            == category.strip().lower()
+        )
+
+    if from_date is not None:
+        query = query.where(
+            Complaint.created_at >= from_date
+        )
+
+    if to_date is not None:
+        query = query.where(
+            Complaint.created_at <= to_date
         )
 
     query = (
@@ -108,6 +116,7 @@ def get_all_complaints(
     )
 
     return db.scalars(query).all()
+
 
 @router.patch(
     "/complaints/{complaint_id}",
