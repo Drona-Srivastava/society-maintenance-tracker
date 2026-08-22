@@ -29,7 +29,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "https://socity-maintenance-tracker.vercel.app",
+        "https://society-maintenance-tracker-drona.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
