@@ -209,7 +209,19 @@ def test_update_profile_rejects_empty_update(client, resident):
     assert response.status_code == 400
     assert response.json()["detail"] == "No changes provided"
 
-def test_user_can_upload_profile_picture(client, resident):
+def test_user_can_upload_profile_picture(
+    client,
+    resident,
+    monkeypatch,
+):
+    async def fake_save_file(file, upload_dir):
+        return "/uploads/profiles/test-profile.jpg"
+
+    monkeypatch.setattr(
+        "app.routers.auth.save_file",
+        fake_save_file,
+    )
+
     login_response = client.post(
         "/api/auth/login",
         json={

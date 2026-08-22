@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -18,6 +18,8 @@ from app.models.notice import Notice
 from app.models.user import User
 
 from app.schemas.complaint import (
+    AdminComplaintResponse,
+    ComplaintHistoryResponse,
     ComplaintResponse,
     ComplaintUpdate,
 )
@@ -58,7 +60,7 @@ def is_valid_status_transition(
     
 @router.get(
     "/complaints",
-    response_model=list[ComplaintResponse],
+    response_model=list[AdminComplaintResponse],
 )
 def get_all_complaints(
     status_filter: ComplaintStatus | None = Query(
@@ -80,7 +82,9 @@ def get_all_complaints(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    query = select(Complaint)
+    query = select(Complaint).options(
+        joinedload(Complaint.resident)
+    )
 
     if status_filter is not None:
         query = query.where(
@@ -127,7 +131,20 @@ def get_all_complaints(
         .limit(limit)
     )
 
-    return db.scalars(query).all()
+    complaints = db.scalars(query).all()
+
+    return [
+        AdminComplaintResponse(
+            **ComplaintResponse.model_validate(
+                complaint
+            ).model_dump(),
+            resident_name=complaint.resident.name,
+            resident_email=complaint.resident.email,
+            resident_phone=complaint.resident.phone,
+            resident_address=complaint.resident.address,
+        )
+        for complaint in complaints
+    ]
 
 
 @router.patch(
@@ -176,8 +193,14 @@ def update_complaint(
                     f"{old_status.value} → {data.status.value}"
                 ),
             )
+
         if data.status != old_status:
             complaint.status = data.status
+
+            history_parts.append(
+                f"Status changed: "
+                f"{old_status.value} → {data.status.value}"
+            )
 
         if data.status == ComplaintStatus.RESOLVED:
             complaint.resolved_at = datetime.now(timezone.utc)
@@ -227,6 +250,33 @@ def update_complaint(
     db.refresh(complaint)
 
     return complaint
+
+@router.get(
+    "/complaints/{complaint_id}/history",
+    response_model=list[ComplaintHistoryResponse],
+)
+def get_complaint_history(
+    complaint_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    complaint = db.get(Complaint, complaint_id)
+
+    if complaint is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Complaint not found",
+        )
+
+    history = db.scalars(
+        select(ComplaintHistory)
+        .where(
+            ComplaintHistory.complaint_id == complaint_id
+        )
+        .order_by(ComplaintHistory.created_at.desc())
+    ).all()
+
+    return history
 
 @router.get(
     "/dashboard",

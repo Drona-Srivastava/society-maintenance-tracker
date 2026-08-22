@@ -7,6 +7,12 @@ from azure.storage.blob.aio import BlobServiceClient
 from fastapi import HTTPException, UploadFile, status
 
 
+# Logical storage paths.
+# These are used to determine the Blob Storage folder.
+COMPLAINT_UPLOAD_DIR = Path("uploads/complaints")
+PROFILE_UPLOAD_DIR = Path("uploads/profiles")
+
+
 ALLOWED_TYPES = {
     "image/jpeg",
     "image/png",
@@ -14,6 +20,12 @@ ALLOWED_TYPES = {
 }
 
 MAX_FILE_SIZE = 5 * 1024 * 1024
+
+
+STORAGE_BACKEND = os.getenv(
+    "STORAGE_BACKEND",
+    "azure",
+)
 
 AZURE_STORAGE_ACCOUNT = os.getenv(
     "AZURE_STORAGE_ACCOUNT"
@@ -45,7 +57,7 @@ def get_blob_service_client() -> BlobServiceClient:
 
 async def save_file(
     file: UploadFile,
-    upload_dir: Path,
+    upload_dir: Path = COMPLAINT_UPLOAD_DIR,
 ) -> str:
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
@@ -70,10 +82,22 @@ async def save_file(
 
     filename = f"{uuid4().hex}{extension}"
 
-    # upload_dir is currently:
-    # uploads/complaints
-    # or
-    # uploads/profiles
+    # Local storage is used only for tests.
+    if STORAGE_BACKEND == "local":
+        upload_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        file_path = upload_dir / filename
+        file_path.write_bytes(contents)
+
+        return f"/uploads/{upload_dir.name}/{filename}"
+
+    # Azure Blob Storage
+    #
+    # uploads/complaints -> complaints
+    # uploads/profiles   -> profiles
     folder = upload_dir.name
 
     blob_name = f"{folder}/{filename}"

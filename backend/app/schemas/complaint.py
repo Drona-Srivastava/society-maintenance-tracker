@@ -70,3 +70,9 @@ class ComplaintListResponse(BaseModel):
     page: int
     limit: int
     total_pages: int
+
+class AdminComplaintResponse(ComplaintResponse):
+    resident_name: str
+    resident_email: str
+    resident_phone: str | None
+    resident_address: str | None
