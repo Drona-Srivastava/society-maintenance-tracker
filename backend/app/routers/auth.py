@@ -1,5 +1,8 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
 
 from fastapi import (
     APIRouter,
@@ -25,6 +28,9 @@ from app.schemas.auth import (
     RegisterRequest,
     TokenResponse,
     UserResponse,
+    ForgotPasswordRequest,
+    VerifyOTPRequest,
+    ResetPasswordRequest,
 )
 
 from app.services.storage import (
@@ -32,11 +38,22 @@ from app.services.storage import (
     save_file,
 )
 
+from app.models.password_reset import PasswordResetOTP
+from app.services.email import send_password_reset_email
+
 router = APIRouter(
     prefix="/api/auth",
     tags=["Authentication"],
 )
 
+def hash_otp(otp: str) -> str:
+    return hashlib.sha256(
+        otp.encode("utf-8")
+    ).hexdigest()
+
+
+def generate_otp() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 @router.post(
     "/register",
@@ -164,3 +181,212 @@ async def upload_profile_picture(
     db.refresh(current_user)
 
     return current_user
+
+@router.post("/forgot-password")
+def forgot_password(
+    data: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    user = db.scalar(
+        select(User).where(User.email == data.email)
+    )
+
+    # Always return the same response.
+    # Do not reveal whether an email exists.
+    if not user:
+        return {
+            "message": (
+                "If an account exists with this email, "
+                "a verification code has been sent."
+            )
+        }
+
+    # Invalidate previous unused OTPs.
+    existing_otps = db.scalars(
+        select(PasswordResetOTP).where(
+            PasswordResetOTP.user_id == user.id,
+            PasswordResetOTP.used_at.is_(None),
+        )
+    ).all()
+
+    for reset in existing_otps:
+        reset.used_at = datetime.now(timezone.utc)
+
+    otp = generate_otp()
+
+    reset = PasswordResetOTP(
+        user_id=user.id,
+        code_hash=hash_otp(otp),
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(minutes=10),
+        attempts=0,
+    )
+
+    db.add(reset)
+    db.commit()
+
+    try:
+        send_password_reset_email(
+            user.email,
+            otp,
+        )
+    except Exception:
+        # Do not leave a valid OTP behind if email delivery fails.
+        reset.used_at = datetime.now(timezone.utc)
+        db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to send verification email. Please try again.",
+        )
+
+    return {
+        "message": (
+            "If an account exists with this email, "
+            "a verification code has been sent."
+        )
+    }
+
+@router.post("/verify-reset-otp")
+def verify_reset_otp(
+    data: VerifyOTPRequest,
+    db: Session = Depends(get_db),
+):
+    user = db.scalar(
+        select(User).where(User.email == data.email)
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code.",
+        )
+
+    reset = db.scalar(
+        select(PasswordResetOTP)
+        .where(
+            PasswordResetOTP.user_id == user.id,
+            PasswordResetOTP.used_at.is_(None),
+        )
+        .order_by(
+            PasswordResetOTP.created_at.desc()
+        )
+    )
+
+    if not reset:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code.",
+        )
+
+    now = datetime.now(timezone.utc)
+
+    if reset.expires_at <= now:
+        reset.used_at = now
+        db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code.",
+        )
+
+    if reset.attempts >= 5:
+        reset.used_at = now
+        db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Too many attempts. Please request a new code.",
+        )
+
+    if not secrets.compare_digest(
+        reset.code_hash,
+        hash_otp(data.otp),
+    ):
+        reset.attempts += 1
+        db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code.",
+        )
+
+    return {
+        "message": "Verification code is valid."
+    }
+
+@router.post("/reset-password")
+def reset_password(
+    data: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    user = db.scalar(
+        select(User).where(User.email == data.email)
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code.",
+        )
+
+    reset = db.scalar(
+        select(PasswordResetOTP)
+        .where(
+            PasswordResetOTP.user_id == user.id,
+            PasswordResetOTP.used_at.is_(None),
+        )
+        .order_by(
+            PasswordResetOTP.created_at.desc()
+        )
+    )
+
+    if not reset:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code.",
+        )
+
+    now = datetime.now(timezone.utc)
+
+    if reset.expires_at <= now:
+        reset.used_at = now
+        db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code.",
+        )
+
+    if reset.attempts >= 5:
+        reset.used_at = now
+        db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Too many attempts. Please request a new code.",
+        )
+
+    if not secrets.compare_digest(
+        reset.code_hash,
+        hash_otp(data.otp),
+    ):
+        reset.attempts += 1
+        db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code.",
+        )
+
+    user.password_hash = hash_password(
+        data.new_password
+    )
+
+    reset.used_at = now
+
+    db.commit()
+
+    return {
+        "message": "Password reset successfully."
+    }

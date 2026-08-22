@@ -1,10 +1,10 @@
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.core.config import settings
-from app.core.database import Base
+from app.core.base import Base
 from app.models import User
 
 
@@ -16,11 +16,18 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-def run_migrations_offline() -> None:
-    """Run migrations in offline mode."""
+def get_database_url() -> str:
+    url = os.getenv("DATABASE_URL")
 
+    if not url:
+        raise RuntimeError("DATABASE_URL is not configured")
+
+    return url
+
+
+def run_migrations_offline() -> None:
     context.configure(
-        url=settings.DATABASE_URL,
+        url=get_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -31,11 +38,11 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in online mode."""
+    url = get_database_url()
 
     config.set_main_option(
         "sqlalchemy.url",
-        settings.DATABASE_URL.replace("%", "%%"),
+        url.replace("%", "%%"),
     )
 
     connectable = engine_from_config(

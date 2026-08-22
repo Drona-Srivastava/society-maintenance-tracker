@@ -30,3 +30,7 @@ dist/
 uploads/
 
 pass.txt
+
+# DB backups
+*.sql
+*.dump

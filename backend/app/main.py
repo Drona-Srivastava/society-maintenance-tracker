@@ -8,7 +8,7 @@ from app.routers import dashboard
 from app.routers.complaints import router as complaints_router
 from app.routers.admin import router as admin_router
 from app.routers.notices import router as notices_router
-
+from app.models.password_reset import PasswordResetOTP
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(

@@ -1,0 +1,118 @@
+1. Smart Complaint Classification
+
+When a resident submits:
+
+"Water leaking from the ceiling in my bedroom."
+
+The backend could automatically classify:
+
+Category: Plumbing
+Priority: High
+Estimated SLA: 24 hours
+
+Whereas:
+
+"The garden lights near Block B aren't working."
+
+becomes:
+
+Category: Electrical
+Priority: Medium
+Estimated SLA: 3 days
+
+You could initially implement this with a lightweight ML model/rules and later replace it with an actual classifier.
+
+This gives you a legitimate ML component to discuss rather than adding AI just for the sake of saying "AI".
+
+2. Complaint SLA + Escalation
+
+You already have COMPLAINT_OVERDUE_DAYS=3.
+
+Take that further.
+
+Each complaint gets:
+
+Created
+   ↓
+Assigned
+   ↓
+In Progress
+   ↓
+Resolved
+   ↓
+Resident confirms
+   ↓
+Closed
+
+If:
+
+current_time > SLA
+
+automatically mark:
+
+OVERDUE
+
+Then surface it to the admin:
+
+5 complaints require attention
+
+This is much stronger than simply showing a complaints table.
+
+3. Resident Complaint Timeline
+
+Instead of:
+
+Complaint: Broken elevator
+Status: Resolved
+
+show:
+
+Aug 20, 10:32 AM
+Complaint submitted
+
+Aug 20, 11:05 AM
+Assigned to Maintenance Team
+
+Aug 20, 1:20 PM
+Technician started work
+
+Aug 21, 9:14 AM
+Marked as resolved
+
+Aug 21, 10:02 AM
+Resident confirmed resolution
+
+You already have complaint_history, so this is a particularly good feature to build next.
+
+4. Admin Analytics
+
+Your admin dashboard could have:
+
+┌────────────┐ ┌────────────┐ ┌────────────┐
+│  142       │ │    17      │ │     4      │
+│ Complaints │ │ Open       │ │ Overdue    │
+└────────────┘ └────────────┘ └────────────┘
+
+Then charts:
+
+Complaints by category
+
+Plumbing       █████████████
+Electrical     ████████
+Cleaning       █████
+Security       ███
+Other          ██
+
+Resolution time
+
+This month
+Average: 1.8 days
+↓ 24% from previous month
+
+Complaint trend
+
+        ╭─╮
+   ╭────╯ ╰──╮
+───╯         ╰────
+
+Now the admin isn't just managing complaints; they're getting operational intelligence.

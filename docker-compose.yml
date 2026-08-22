@@ -3,14 +3,18 @@ services:
     image: postgres:17
     container_name: society-postgres
     restart: unless-stopped
+
     environment:
       POSTGRES_USER: society
       POSTGRES_PASSWORD: society_dev
       POSTGRES_DB: society_tracker
+
     ports:
       - "5432:5432"
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U society -d society_tracker"]
       interval: 5s
@@ -20,16 +24,19 @@ services:
   backend:
     build:
       context: ./backend
+
     container_name: society-backend
     restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
     environment:
       DATABASE_URL: postgresql+psycopg://society:society_dev@postgres:5432/society_tracker
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 30
-      COMPLAINT_OVERDUE_DAYS: 3
+
     ports:
       - "8000:8000"
+
     depends_on:
       postgres:
         condition: service_healthy
