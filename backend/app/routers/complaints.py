@@ -26,6 +26,7 @@ from app.schemas.complaint import (
 )
 from app.services.storage import (
     COMPLAINT_UPLOAD_DIR,
+    download_file,
     save_file,
 )
 
@@ -144,6 +145,44 @@ def get_complaint(
 
     return complaint
 
+@router.get(
+    "/{complaint_id}/photo",
+)
+async def get_complaint_photo(
+    complaint_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    complaint = db.get(Complaint, complaint_id)
+
+    if complaint is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Complaint not found",
+        )
+
+    if complaint.resident_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this complaint",
+        )
+
+    if not complaint.photo_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This complaint has no photo",
+        )
+
+    contents, content_type = await download_file(
+        complaint.photo_url
+    )
+
+    from fastapi.responses import Response
+
+    return Response(
+        content=contents,
+        media_type=content_type,
+    )
 
 @router.get(
     "/{complaint_id}/history",

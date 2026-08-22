@@ -7,8 +7,6 @@ from azure.storage.blob.aio import BlobServiceClient
 from fastapi import HTTPException, UploadFile, status
 
 
-# Logical storage paths.
-# These are used to determine the Blob Storage folder.
 COMPLAINT_UPLOAD_DIR = Path("uploads/complaints")
 PROFILE_UPLOAD_DIR = Path("uploads/profiles")
 
@@ -21,15 +19,7 @@ ALLOWED_TYPES = {
 
 MAX_FILE_SIZE = 5 * 1024 * 1024
 
-
-STORAGE_BACKEND = os.getenv(
-    "STORAGE_BACKEND",
-    "azure",
-)
-
-AZURE_STORAGE_ACCOUNT = os.getenv(
-    "AZURE_STORAGE_ACCOUNT"
-)
+AZURE_STORAGE_ACCOUNT = os.getenv("AZURE_STORAGE_ACCOUNT")
 
 AZURE_STORAGE_CONTAINER = os.getenv(
     "AZURE_STORAGE_CONTAINER",
@@ -82,24 +72,7 @@ async def save_file(
 
     filename = f"{uuid4().hex}{extension}"
 
-    # Local storage is used only for tests.
-    if STORAGE_BACKEND == "local":
-        upload_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        file_path = upload_dir / filename
-        file_path.write_bytes(contents)
-
-        return f"/uploads/{upload_dir.name}/{filename}"
-
-    # Azure Blob Storage
-    #
-    # uploads/complaints -> complaints
-    # uploads/profiles   -> profiles
     folder = upload_dir.name
-
     blob_name = f"{folder}/{filename}"
 
     client = get_blob_service_client()
@@ -120,6 +93,65 @@ async def save_file(
         )
 
         return blob_client.url
+
+    finally:
+        await client.close()
+
+
+async def download_file(blob_url: str):
+    """
+    Download a private Azure Blob Storage object.
+
+    Returns:
+        tuple[bytes, str]
+        - file contents
+        - content type
+    """
+
+    if not blob_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found",
+        )
+
+    filename = blob_url.rstrip("/").split("/")[-1]
+
+    # The URL returned by save_file looks like:
+    # https://account.blob.core.windows.net/uploads/complaints/file.png
+    #
+    # We only need:
+    # complaints/file.png
+    blob_name = f"complaints/{filename}"
+
+    client = get_blob_service_client()
+
+    try:
+        container_client = client.get_container_client(
+            AZURE_STORAGE_CONTAINER
+        )
+
+        blob_client = container_client.get_blob_client(
+            blob_name
+        )
+
+        try:
+            downloader = await blob_client.download_blob()
+            contents = await downloader.readall()
+
+            properties = await blob_client.get_blob_properties()
+
+            content_type = (
+                properties.content_settings.content_type
+                or "application/octet-stream"
+            )
+
+            return contents, content_type
+
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found",
+            )
 
     finally:
         await client.close()

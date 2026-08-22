@@ -64,10 +64,10 @@ export default function ComplaintDetail() {
   const [photoUrl, setPhotoUrl] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  const [photoLoading, setPhotoLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let objectUrl = null;
     let cancelled = false;
 
     async function loadComplaint() {
@@ -90,21 +90,6 @@ export default function ComplaintDetail() {
             ? historyData
             : historyData.items || [],
         );
-
-        if (complaintData.photo_url) {
-          objectUrl = await getComplaintPhoto(
-            complaintData.id,
-          );
-
-          if (cancelled) {
-            URL.revokeObjectURL(objectUrl);
-            return;
-          }
-
-          setPhotoUrl(objectUrl);
-        } else {
-          setPhotoUrl(null);
-        }
       } catch (err) {
         console.error(err);
 
@@ -124,12 +109,58 @@ export default function ComplaintDetail() {
 
     return () => {
       cancelled = true;
+    };
+  }, [complaintId]);
+
+  useEffect(() => {
+    let objectUrl = null;
+    let cancelled = false;
+
+    async function loadPhoto() {
+      if (!complaint?.photo_url) {
+        setPhotoUrl(null);
+        return;
+      }
+
+      try {
+        setPhotoLoading(true);
+
+        objectUrl = await getComplaintPhoto(
+          complaint.id,
+        );
+
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+
+        setPhotoUrl(objectUrl);
+      } catch (err) {
+        console.error(
+          "Unable to load complaint photo:",
+          err,
+        );
+
+        if (!cancelled) {
+          setPhotoUrl(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setPhotoLoading(false);
+        }
+      }
+    }
+
+    loadPhoto();
+
+    return () => {
+      cancelled = true;
 
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [complaintId]);
+  }, [complaint]);
 
   if (loading) {
     return (
@@ -155,6 +186,7 @@ export default function ComplaintDetail() {
     return (
       <div className="empty-state">
         <strong>Complaint not found</strong>
+
         <p>
           This complaint may have been removed or
           you may not have access to it.
@@ -210,6 +242,7 @@ export default function ComplaintDetail() {
             <div className="detail-panel-heading">
               <div>
                 <h3>Complaint details</h3>
+
                 <p>
                   Information about your maintenance
                   request.
@@ -220,6 +253,7 @@ export default function ComplaintDetail() {
             <div className="detail-info-grid">
               <div className="detail-info-item">
                 <span>Category</span>
+
                 <strong>
                   {complaint.category}
                 </strong>
@@ -227,6 +261,7 @@ export default function ComplaintDetail() {
 
               <div className="detail-info-item">
                 <span>Priority</span>
+
                 <strong className="capitalize">
                   {complaint.priority || "Medium"}
                 </strong>
@@ -234,25 +269,32 @@ export default function ComplaintDetail() {
 
               <div className="detail-info-item">
                 <span>Submitted</span>
+
                 <strong>
-                  {formatDate(complaint.created_at)}
+                  {formatDate(
+                    complaint.created_at,
+                  )}
                 </strong>
               </div>
 
               <div className="detail-info-item">
                 <span>Last updated</span>
+
                 <strong>
-                  {formatDate(complaint.updated_at)}
+                  {formatDate(
+                    complaint.updated_at,
+                  )}
                 </strong>
               </div>
             </div>
           </section>
 
-          {complaint.photo_url && photoUrl && (
+          {complaint.photo_url && (
             <section className="detail-panel">
               <div className="detail-panel-heading">
                 <div>
                   <h3>Attachment</h3>
+
                   <p>
                     Photo attached to this complaint.
                   </p>
@@ -264,13 +306,33 @@ export default function ComplaintDetail() {
                 />
               </div>
 
-              <div className="complaint-image-wrapper">
-                <img
-                  src={photoUrl}
-                  alt="Complaint attachment"
-                  className="complaint-image"
-                />
-              </div>
+              {photoLoading && (
+                <div className="detail-empty">
+                  <Clock3 size={19} />
+                  <span>
+                    Loading attachment...
+                  </span>
+                </div>
+              )}
+
+              {!photoLoading && photoUrl && (
+                <div className="complaint-image-wrapper">
+                  <img
+                    src={photoUrl}
+                    alt="Complaint attachment"
+                    className="complaint-image"
+                  />
+                </div>
+              )}
+
+              {!photoLoading && !photoUrl && (
+                <div className="detail-empty">
+                  <FileImage size={19} />
+                  <span>
+                    Unable to load attachment.
+                  </span>
+                </div>
+              )}
             </section>
           )}
 
@@ -278,6 +340,7 @@ export default function ComplaintDetail() {
             <div className="detail-panel-heading">
               <div>
                 <h3>Complaint history</h3>
+
                 <p>
                   Updates made to this maintenance
                   request.
@@ -288,6 +351,7 @@ export default function ComplaintDetail() {
             {history.length === 0 ? (
               <div className="detail-empty">
                 <Clock3 size={19} />
+
                 <span>
                   No history updates yet.
                 </span>
@@ -363,6 +427,7 @@ export default function ComplaintDetail() {
 
               <div>
                 <span>Submitted</span>
+
                 <strong>
                   {formatDate(
                     complaint.created_at,
@@ -377,6 +442,7 @@ export default function ComplaintDetail() {
 
                 <div>
                   <span>Resolved</span>
+
                   <strong>
                     {formatDate(
                       complaint.resolved_at,
