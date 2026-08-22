@@ -1,12 +1,32 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+)
+import re
+
+PHONE_PATTERN = r"\+?\d{10,15}"
 
 
 class RegisterRequest(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    phone: str = Field(min_length=10, max_length=20)
+    phone: str = Field(max_length=16)
     address: str = Field(min_length=5, max_length=500)
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value):
+        if not re.fullmatch(PHONE_PATTERN, value):
+            raise ValueError(
+                "Phone number must contain 10–15 digits "
+                "and may optionally start with +"
+            )
+
+        return value
 
 
 class LoginRequest(BaseModel):
@@ -22,14 +42,27 @@ class ProfileUpdateRequest(BaseModel):
     )
     phone: str | None = Field(
         default=None,
-        min_length=10,
-        max_length=20,
+        max_length=16,
     )
     address: str | None = Field(
         default=None,
         min_length=5,
         max_length=500,
     )
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value):
+        if value is None:
+            return value
+
+        if not re.fullmatch(PHONE_PATTERN, value):
+            raise ValueError(
+                "Phone number must contain 10–15 digits "
+                "and may optionally start with +"
+            )
+
+        return value
 
 
 class UserResponse(BaseModel):
