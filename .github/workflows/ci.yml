@@ -125,9 +125,21 @@ jobs:
           docker push \
             societymaintenanceacr.azurecr.io/society-maintenance-tracker:${{ github.sha }}
 
+      - name: Verify Azure context
+        run: |
+          az account show \
+            --query "{subscription:id,name:name,tenantId:tenantId}" \
+            -o table
+
+          az containerapp list \
+            --subscription 2e343d2b-52f3-465c-b23c-c32ef2ca365f \
+            --query "[].{name:name,resourceGroup:resourceGroup,location:location}" \
+            -o table
+
       - name: Deploy to Azure Container App
         run: |
           az containerapp update \
+            --subscription 2e343d2b-52f3-465c-b23c-c32ef2ca365f \
             --name society-backend \
             --resource-group society-maintenance-rg \
             --image societymaintenanceacr.azurecr.io/society-maintenance-tracker:${{ github.sha }}
@@ -135,6 +147,7 @@ jobs:
       - name: Verify deployment
         run: |
           IMAGE=$(az containerapp show \
+            --subscription 2e343d2b-52f3-465c-b23c-c32ef2ca365f \
             --name society-backend \
             --resource-group society-maintenance-rg \
             --query "properties.template.containers[0].image" \
