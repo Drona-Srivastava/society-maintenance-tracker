@@ -3,10 +3,11 @@ import { useRef, useState } from "react";
 
 import { useAuth } from "../../context/AuthContext";
 import { getMediaUrl } from "../../api/client";
+import { useToast } from "../../context/ToastContext";
 
 export default function Profile() {
   const { user, updateProfile, uploadProfilePicture } = useAuth();
-
+  const { showToast } = useToast();
   const fileInputRef = useRef(null);
 
   const [name, setName] = useState(user?.name || "");
@@ -48,6 +49,7 @@ export default function Profile() {
       await updateProfile(payload);
 
       setSuccess("Your profile has been updated.");
+      showToast("Profile updated successfully.", "success");
     } catch (err) {
       console.error(err);
 
@@ -84,10 +86,10 @@ export default function Profile() {
       setUploadingPhoto(true);
       setError("");
       setSuccess("");
-
       await uploadProfilePicture(file);
 
       setSuccess("Your profile picture has been updated.");
+      showToast("Profile picture updated successfully.", "success");
     } catch (err) {
       console.error(err);
 
