@@ -21,6 +21,7 @@ import RoleRoute from "./routes/RoleRoute";
 import AdminComplaints from "./pages/admin/Complaints";
 import AdminComplaintDetail from "./pages/admin/ComplaintDetail";
 import AdminProfile from "./pages/admin/Profile";
+import NotFound from "./pages/NotFound";
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -118,10 +119,7 @@ function App() {
       </Route>
 
       {/* Unknown route */}
-      <Route
-        path="*"
-        element={<Navigate to="/" replace />}
-      />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

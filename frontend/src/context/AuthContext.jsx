@@ -17,6 +17,8 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
+  const [authRetry, setAuthRetry] = useState(0);
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -26,24 +28,37 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    setLoading(true);
+    setAuthError(null);
+
     getMe()
       .then((currentUser) => {
         setUser(currentUser);
       })
-      .catch(() => {
-        localStorage.removeItem("access_token");
-        setUser(null);
+      .catch((error) => {
+        if (error.response?.status === 401) {
+          localStorage.removeItem("access_token");
+          setUser(null);
+          return;
+        }
+
+        console.error("Failed to restore session:", error);
+
+        setAuthError(
+          "We couldn't connect to the server. Please try again.",
+        );
       })
       .finally(() => {
         setLoading(false);
       });
-  }, []);
+  }, [authRetry]);
 
   const login = async (email, password) => {
     const data = await loginRequest(email, password);
 
     localStorage.setItem("access_token", data.access_token);
     setUser(data.user);
+    setAuthError(null);
 
     return data.user;
   };
@@ -69,17 +84,25 @@ export function AuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem("access_token");
     setUser(null);
+    setAuthError(null);
+  };
+
+  const retryAuth = () => {
+    setAuthRetry((value) => value + 1);
   };
 
   const value = {
     user,
     loading,
+    authError,
     isAuthenticated: Boolean(user),
     login,
     logout,
     updateProfile,
     uploadProfilePicture,
+    retryAuth,
   };
+
   return (
     <AuthContext.Provider value={value}>
       {children}
