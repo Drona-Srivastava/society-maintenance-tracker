@@ -55,6 +55,18 @@ Before changing or deploying the project, read the relevant documentation.
 
 **Do not skip `BACKEND.md` before changing Azure deployment configuration.**
 
+## Demo access
+
+Use these mock accounts to review the submitted assignment. They are demo-only credentials and should not be reused outside this project.
+
+| Role | Email | Password |
+|---|---|---|
+| Resident | `aarav.mehta.demo@example.com` | `demo@society` |
+| Resident | `priya.sharma.demo@example.com` | `demo@society` |
+| Resident | `rohan.iyer.demo@example.com` | `demo@society` |
+| Administrator | `admin@society.local` | `Admin@12345` |
+
+The resident accounts can create and track complaints. The administrator account can review complaints, update their status and priority, and manage notices.
 ---
 
 # Important Rule Before Pushing
